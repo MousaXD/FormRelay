@@ -1,7 +1,18 @@
 {
   "addons": {
     "mousashriteh0@gmail.com": {
-      "updates": []
+      "updates": [
+        {
+          "version": "0.1.2",
+          "update_link": "https://github.com/MousaXD/FormRelay/releases/download/v0.1.2/FormRelay-v0.1.2-firefox-signed.xpi",
+          "update_hash": "sha256:fb75a8cdf69ae9719ad6d5fbda3432650c99a0c4643cf95cfc48de5fc5507878",
+          "applications": {
+            "gecko": {
+              "strict_min_version": "142.0"
+            }
+          }
+        }
+      ]
     }
   }
 }
