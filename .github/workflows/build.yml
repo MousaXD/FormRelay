@@ -1,31 +1,116 @@
-name: Build artifacts
+name: Release builds
 
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags: ['v*']
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  release-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - uses: pnpm/action-setup@v6
         with:
           version: 11.23.0
           run_install: false
+
       - uses: actions/setup-node@v6
         with:
           node-version: 22.13.0
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - run: pnpm zip:firefox
-      - run: pnpm zip:chromium
-      - uses: actions/upload-artifact@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build Firefox and Chromium
+        run: pnpm build
+
+      - name: Package release files
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          TAG="v${VERSION}"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "${TAG}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${TAG}." >&2
+            exit 1
+          fi
+
+          mkdir -p ready
+          (
+            cd .output/firefox-mv3
+            zip -qr "../../ready/FormRelay-${TAG}-firefox-unsigned.zip" .
+          )
+          (
+            cd .output/chrome-mv3
+            zip -qr "../../ready/FormRelay-${TAG}-chromium.zip" .
+          )
+          (
+            cd ready
+            sha256sum *.zip > SHA256SUMS.txt
+          )
+
+          cat > release-notes.md <<EOF
+          ## Ready-to-test builds
+
+          - **Firefox:** download `FormRelay-${TAG}-firefox-unsigned.zip`. This package is intentionally unsigned for development/testing. Extract it, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select the extracted `manifest.json`.
+          - **Chromium / Chrome / Edge:** download `FormRelay-${TAG}-chromium.zip`, extract it, enable Developer mode on the extensions page, choose **Load unpacked**, and select the extracted folder.
+          - `SHA256SUMS.txt` contains checksums for both browser packages.
+
+          FormRelay never auto-submits forms. Review imported changes before filling and submit the webpage yourself.
+          EOF
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
         with:
-          name: formrelay-extension-builds
-          path: .output/*.zip
+          name: formrelay-${{ steps.package.outputs.tag }}-ready-builds
+          path: ready/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.package.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              gh release upload "$TAG" ready/* --clobber
+            else
+              echo "Release $TAG already exists; leaving the versioned release unchanged."
+            fi
+            exit 0
+          fi
+
+          gh release create "$TAG" ready/* \
+            --target "$GITHUB_SHA" \
+            --title "FormRelay $TAG" \
+            --notes-file release-notes.md \
+            --generate-notes
