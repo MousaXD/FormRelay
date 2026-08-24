@@ -2,3 +2,4 @@ Bootstrap CI observability branch.
 Retry after Node 22.13 CI floor update.
 Retry with source lint fixes under verification.
 Expose typecheck, test, and build gates.
+Retry with TypeScript fixes.
