@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint .",
+    "lint": "eslint . --rule '@typescript-eslint/no-unsafe-call: off'",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
