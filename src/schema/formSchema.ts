@@ -6,6 +6,18 @@ const safeString = (max: number) =>
   z.string().max(max).refine(isWellFormedUnicode, 'Invalid Unicode');
 const nullableText = (max: number) => safeString(max).nullable();
 
+const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+
+function containsForbiddenObjectKey(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsForbiddenObjectKey);
+  if (value === null || typeof value !== 'object') return false;
+
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).some(
+    (key) => FORBIDDEN_OBJECT_KEYS.has(key) || containsForbiddenObjectKey(record[key]),
+  );
+}
+
 export const optionSchema = z
   .object({
     value: safeString(LIMITS.optionChars),
@@ -96,7 +108,7 @@ export const formFieldSchema = z.discriminatedUnion('type', [
   checkboxGroupFieldSchema,
 ]);
 
-export const formRelaySchema = z
+const formRelayObjectSchema = z
   .object({
     schema: z.literal('formrelay'),
     schema_version: z.literal(1),
@@ -115,6 +127,10 @@ export const formRelaySchema = z
     fields: z.array(formFieldSchema).max(LIMITS.fields),
   })
   .strict();
+
+export const formRelaySchema = z
+  .custom<unknown>((value) => !containsForbiddenObjectKey(value), 'Forbidden object key')
+  .pipe(formRelayObjectSchema);
 
 export type FormRelayDocument = z.infer<typeof formRelaySchema>;
 export type FormRelayField = z.infer<typeof formFieldSchema>;
