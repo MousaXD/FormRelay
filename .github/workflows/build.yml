@@ -74,11 +74,13 @@ jobs:
           cat > release-notes.md <<EOF
           ## Ready-to-test builds
 
-          - **Firefox:** download `FormRelay-${TAG}-firefox-unsigned.zip`. This package is intentionally unsigned for development/testing. Extract it, open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select the extracted `manifest.json`.
-          - **Chromium / Chrome / Edge:** download `FormRelay-${TAG}-chromium.zip`, extract it, enable Developer mode on the extensions page, choose **Load unpacked**, and select the extracted folder.
-          - `SHA256SUMS.txt` contains checksums for both browser packages.
+          - **Firefox:** download **FormRelay-${TAG}-firefox-unsigned.zip**. This package is intentionally unsigned for development/testing. Extract it, open **about:debugging#/runtime/this-firefox**, choose **Load Temporary Add-on**, and select the extracted **manifest.json**.
+          - **Chromium / Chrome / Edge:** download **FormRelay-${TAG}-chromium.zip**, extract it, enable Developer mode on the extensions page, choose **Load unpacked**, and select the extracted folder.
+          - **SHA256SUMS.txt** contains checksums for both browser packages.
 
           FormRelay never auto-submits forms. Review imported changes before filling and submit the webpage yourself.
+
+          Full changelog: https://github.com/${GITHUB_REPOSITORY}/commits/${TAG}
           EOF
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
@@ -101,10 +103,11 @@ jobs:
           set -euo pipefail
 
           if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file release-notes.md
             if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
               gh release upload "$TAG" ready/* --clobber
             else
-              echo "Release $TAG already exists; leaving the versioned release unchanged."
+              echo "Release $TAG already exists; refreshed release instructions without moving the version tag."
             fi
             exit 0
           fi
@@ -112,5 +115,4 @@ jobs:
           gh release create "$TAG" ready/* \
             --target "$GITHUB_SHA" \
             --title "FormRelay $TAG" \
-            --notes-file release-notes.md \
-            --generate-notes
+            --notes-file release-notes.md
