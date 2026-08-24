@@ -8,9 +8,13 @@ export function setNativeValue(
       : element instanceof HTMLTextAreaElement
         ? HTMLTextAreaElement.prototype
         : HTMLSelectElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
-  if (!setter) throw new Error('Native value setter is unavailable.');
-  setter.call(element, value);
+  const descriptor = Object.getOwnPropertyDescriptor(prototype, 'value');
+  if (typeof descriptor?.set !== 'function') {
+    throw new Error('Native value setter is unavailable.');
+  }
+  if (!Reflect.set(prototype, 'value', value, element)) {
+    throw new Error('Native value setter rejected the update.');
+  }
 }
 
 export function dispatchValueEvents(element: HTMLElement): void {
