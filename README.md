@@ -33,7 +33,7 @@ Passwords, payments, files, CAPTCHA, hidden fields, autonomous browsing, automat
 
 ## Development
 
-Requires Node.js 22.12+ and pnpm 11.
+Requires Node.js 22.13+ and pnpm 11.
 
 ```sh
 pnpm install --frozen-lockfile
