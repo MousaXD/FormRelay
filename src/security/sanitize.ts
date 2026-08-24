@@ -1,6 +1,19 @@
 import { LIMITS } from './limits';
 
-const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+function stripDisallowedControlChars(value: string): string {
+  let result = '';
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    const disallowed =
+      code <= 0x08 ||
+      code === 0x0b ||
+      code === 0x0c ||
+      (code >= 0x0e && code <= 0x1f) ||
+      code === 0x7f;
+    if (!disallowed) result += character;
+  }
+  return result;
+}
 
 function repairUnicode(value: string): string {
   if (typeof value.toWellFormed === 'function') return value.toWellFormed();
@@ -33,19 +46,19 @@ function bounded(value: string, max: number): string {
 
 export function sanitizeText(
   value: string | null | undefined,
-  max = LIMITS.labelChars,
+  max: number = LIMITS.labelChars,
 ): string | null {
   if (value == null) return null;
-  const clean = bounded(value, max).replace(CONTROL_CHARS, '').replace(/\s+/g, ' ').trim();
+  const clean = stripDisallowedControlChars(bounded(value, max)).replace(/\s+/g, ' ').trim();
   return clean.length > 0 ? clean : null;
 }
 
 export function sanitizeConstraintText(
   value: string | null | undefined,
-  max = LIMITS.constraintChars,
+  max: number = LIMITS.constraintChars,
 ): string | null {
   if (value == null) return null;
-  const clean = bounded(value, max).replace(CONTROL_CHARS, '');
+  const clean = stripDisallowedControlChars(bounded(value, max));
   return clean.length > 0 ? clean : null;
 }
 
