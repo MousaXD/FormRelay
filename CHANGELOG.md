@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-08-25
+
+- Add the permanent Firefox extension ID `formrelay@mousaxd.dev` required for Manifest V3 signing through Mozilla Add-ons.
+- Keep the existing privacy boundary and permissions unchanged (`activeTab` and `scripting` only).
+
 ## 0.1.0 - 2026-08-25
 
 - Initial local-only FormRelay release.
