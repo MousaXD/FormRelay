@@ -5,7 +5,7 @@ import { downloadJson } from '../../src/export/downloadJson';
 import { exportJson } from '../../src/export/exportJson';
 import { parseImport } from '../../src/import/parseImport';
 import { comparePage } from '../../src/import/validateImport';
-import type { FormRelayDocument } from '../../src/schema/formSchema';
+import type { FormRelayDocument, FormRelayField } from '../../src/schema/formSchema';
 import type { BridgeRequest, BridgeResponse } from '../../src/types/messages';
 
 async function activeTabId(): Promise<number> {
@@ -14,9 +14,13 @@ async function activeTabId(): Promise<number> {
   return tab.id;
 }
 
+function hasProperty(value: object, key: string): value is Record<string, unknown> {
+  return key in value;
+}
+
 function isBridgeResponse(value: unknown): value is BridgeResponse {
-  if (value === null || typeof value !== 'object') return false;
-  const type = Reflect.get(value, 'type');
+  if (value === null || typeof value !== 'object' || !hasProperty(value, 'type')) return false;
+  const type = value.type;
   return type === 'extract' || type === 'preview' || type === 'fill';
 }
 
@@ -28,14 +32,20 @@ async function send(request: BridgeRequest): Promise<BridgeResponse> {
   return response;
 }
 
+async function extractCurrent(): Promise<Extract<BridgeResponse, { type: 'extract' }>> {
+  const response = await send({ type: 'FORMRELAY_EXTRACT' });
+  if (response.type !== 'extract') throw new Error('Unexpected extract response.');
+  return response;
+}
+
 async function copy(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
 
-function shown(value: unknown): string {
+function shown(value: FormRelayField['value']): string {
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'boolean') return value ? 'checked' : 'unchecked';
-  return String(value ?? '');
+  return value;
 }
 
 export default function App() {
@@ -54,18 +64,31 @@ export default function App() {
   const refresh = async () => {
     try {
       setError(null);
-      const response = await send({ type: 'FORMRELAY_EXTRACT' });
-      if (response.type === 'extract') {
-        setCurrent(response.document);
-        setExcluded(response.excludedSensitiveCount);
-      }
+      const response = await extractCurrent();
+      setCurrent(response.document);
+      setExcluded(response.excludedSensitiveCount);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not inspect this page.');
     }
   };
 
   useEffect(() => {
-    void refresh();
+    let active = true;
+
+    void extractCurrent()
+      .then((response) => {
+        if (!active) return;
+        setCurrent(response.document);
+        setExcluded(response.excludedSensitiveCount);
+      })
+      .catch((caught: unknown) => {
+        if (!active) return;
+        setError(caught instanceof Error ? caught.message : 'Could not inspect this page.');
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const stats = useMemo(() => {
