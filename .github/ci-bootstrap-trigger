@@ -4,3 +4,4 @@ Retry with source lint fixes under verification.
 Expose typecheck, test, and build gates.
 Retry with TypeScript fixes.
 Retry with temporary helper excluded from lint.
+Retry with prototype-key and CAPTCHA security fixes.
