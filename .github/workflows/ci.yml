@@ -37,3 +37,32 @@ jobs:
 
       - name: Build Firefox and Chromium
         run: pnpm build
+
+      - name: Package ready builds
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          mkdir -p ready
+          (
+            cd .output/firefox-mv3
+            zip -qr "../../ready/FormRelay-v${VERSION}-firefox-unsigned.zip" .
+          )
+          (
+            cd .output/chrome-mv3
+            zip -qr "../../ready/FormRelay-v${VERSION}-chromium.zip" .
+          )
+          (
+            cd ready
+            sha256sum *.zip > SHA256SUMS.txt
+          )
+
+      - name: Upload ready builds
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: formrelay-ready-builds
+          path: ready/
+          if-no-files-found: error
+          retention-days: 30
