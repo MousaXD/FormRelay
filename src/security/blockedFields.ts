@@ -20,7 +20,7 @@ const STRONG_PATTERNS = [
   /\b(private[ _-]?key|secret[ _-]?key|client[ _-]?secret)\b/i,
   /\b(bank[ _-]?(password|pin|credential)|routing[ _-]?password)\b/i,
   /\b(iban|bank[ _-]?account|account[ _-]?(number|no)|routing[ _-]?(number|no)|sort[ _-]?code)\b/i,
-  /\b(captcha|recaptcha|hcaptcha|turnstile)\b/i,
+  /(^|[^a-z0-9])(captcha|recaptcha|hcaptcha|turnstile)(?=$|[^a-z0-9])/i,
 ];
 
 export type SensitiveDecision = { blocked: boolean; reason?: string };
