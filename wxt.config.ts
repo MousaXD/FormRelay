@@ -24,7 +24,8 @@ export default defineConfig({
           browser_specific_settings: {
             gecko: {
               id: 'mousashriteh0@gmail.com',
-              strict_min_version: '128.0',
+              strict_min_version: '142.0',
+              update_url: 'https://raw.githubusercontent.com/MousaXD/FormRelay/main/updates.json',
               data_collection_permissions: { required: ['none'] },
             },
           },

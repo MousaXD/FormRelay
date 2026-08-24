@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 - 2026-08-25
+
+- Automate unlisted Mozilla signing for new Firefox releases using GitHub Actions.
+- Upload a reproducible source archive to Mozilla with every automated Firefox submission.
+- Attach the Mozilla-signed XPI to the matching GitHub Release.
+- Add a self-hosted Firefox update manifest so signed installs can receive future updates automatically.
+- Raise the Firefox minimum version to 142 so `data_collection_permissions` is supported on both desktop and Android validators.
+- Keep the privacy boundary and permissions unchanged (`activeTab` and `scripting` only).
+
 ## 0.1.1 - 2026-08-25
 
 - Add the permanent Firefox extension ID `mousashriteh0@gmail.com` required for Manifest V3 signing through Mozilla Add-ons.

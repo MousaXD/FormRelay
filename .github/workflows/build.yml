@@ -5,6 +5,8 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+    paths-ignore:
+      - updates.json
 
 permissions:
   contents: read
@@ -57,7 +59,7 @@ jobs:
             exit 1
           fi
 
-          mkdir -p ready
+          mkdir -p ready signed-artifacts
           (
             cd .output/firefox-mv3
             zip -qr "../../ready/FormRelay-${TAG}-firefox-unsigned.zip" .
@@ -66,25 +68,96 @@ jobs:
             cd .output/chrome-mv3
             zip -qr "../../ready/FormRelay-${TAG}-chromium.zip" .
           )
+          git archive --format=zip --output="ready/FormRelay-${TAG}-source.zip" HEAD
+
+          cat > amo-metadata.json <<'EOF'
+          {
+            "version": {
+              "approval_notes": "Build with Node.js 22.13.0+ and pnpm 11.23.0: pnpm install --frozen-lockfile && pnpm build:firefox. Output: .output/firefox-mv3/. FormRelay application code does not use eval/Function/dangerouslySetInnerHTML. Validator warnings for Function/innerHTML originate from bundled Zod/React dependency internals. Imported JSON is strictly schema validated and FormRelay never auto-submits forms. See AMO-BUILD.md in the uploaded source archive."
+            }
+          }
+          EOF
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Determine whether this version is new
+        id: release_state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.package.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "is_new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require Mozilla signing credentials
+        if: steps.release_state.outputs.is_new == 'true'
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${WEB_EXT_API_KEY}" || -z "${WEB_EXT_API_SECRET}" ]]; then
+            echo "::error::Add repository Actions secrets AMO_JWT_ISSUER and AMO_JWT_SECRET before publishing a new version."
+            exit 1
+          fi
+
+      - name: Submit to Mozilla and download signed XPI
+        if: steps.release_state.outputs.is_new == 'true'
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          TAG: ${{ steps.package.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm dlx web-ext@10.5.0 sign \
+            --channel=unlisted \
+            --source-dir=.output/firefox-mv3 \
+            --artifacts-dir=signed-artifacts \
+            --upload-source-code="ready/FormRelay-${TAG}-source.zip" \
+            --amo-metadata=amo-metadata.json \
+            --approval-timeout=18000000 \
+            --timeout=300000 \
+            --no-input
+
+          XPI="$(find signed-artifacts -maxdepth 1 -type f -name '*.xpi' -print -quit)"
+          if [[ -z "$XPI" ]]; then
+            echo "::error::Mozilla did not return a signed XPI."
+            exit 1
+          fi
+          cp "$XPI" "ready/FormRelay-${TAG}-firefox-signed.xpi"
+
+      - name: Finalize checksums and release notes
+        env:
+          TAG: ${{ steps.package.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
           (
             cd ready
-            sha256sum *.zip > SHA256SUMS.txt
+            sha256sum FormRelay-* > SHA256SUMS.txt
           )
 
           cat > release-notes.md <<EOF
-          ## Ready-to-test builds
+          ## Ready-to-install builds
 
-          - **Firefox:** download **FormRelay-${TAG}-firefox-unsigned.zip**. This package is intentionally unsigned for development/testing. Extract it, open **about:debugging#/runtime/this-firefox**, choose **Load Temporary Add-on**, and select the extracted **manifest.json**.
-          - **Chromium / Chrome / Edge:** download **FormRelay-${TAG}-chromium.zip**, extract it, enable Developer mode on the extensions page, choose **Load unpacked**, and select the extracted folder.
-          - **SHA256SUMS.txt** contains checksums for both browser packages.
+          - **Firefox:** **FormRelay-${TAG}-firefox-signed.xpi** is Mozilla-signed for permanent installation. After this version is installed, Firefox can use FormRelay's self-hosted update manifest for future automatic updates.
+          - **Firefox development:** **FormRelay-${TAG}-firefox-unsigned.zip** is retained for temporary debugging only.
+          - **Chromium / Chrome / Edge:** extract **FormRelay-${TAG}-chromium.zip**, enable Developer mode, choose **Load unpacked**, and select the extracted folder.
+          - **Mozilla reviewer source:** **FormRelay-${TAG}-source.zip** reproduces the Firefox build using the instructions in **AMO-BUILD.md**.
+          - **SHA256SUMS.txt** contains checksums for the release artifacts.
 
           FormRelay never auto-submits forms. Review imported changes before filling and submit the webpage yourself.
 
           Full changelog: https://github.com/${GITHUB_REPOSITORY}/commits/${TAG}
           EOF
-
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
@@ -94,25 +167,69 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Create or update GitHub release
+      - name: Create or refresh GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.package.outputs.tag }}
+          IS_NEW: ${{ steps.release_state.outputs.is_new }}
         shell: bash
         run: |
           set -euo pipefail
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          if [[ "$IS_NEW" == "true" ]]; then
+            gh release create "$TAG" ready/* \
+              --target "$GITHUB_SHA" \
+              --title "FormRelay $TAG" \
+              --notes-file release-notes.md
+          else
             gh release edit "$TAG" --notes-file release-notes.md
             if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
               gh release upload "$TAG" ready/* --clobber
             else
-              echo "Release $TAG already exists; refreshed release instructions without moving the version tag."
+              echo "Release $TAG already exists; versioned assets were not replaced from an ordinary main push."
             fi
-            exit 0
           fi
 
-          gh release create "$TAG" ready/* \
-            --target "$GITHUB_SHA" \
-            --title "FormRelay $TAG" \
-            --notes-file release-notes.md
+      - name: Publish Firefox update manifest
+        if: steps.release_state.outputs.is_new == 'true' && github.ref == 'refs/heads/main'
+        env:
+          TAG: ${{ steps.package.outputs.tag }}
+          VERSION: ${{ steps.package.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          XPI="ready/FormRelay-${TAG}-firefox-signed.xpi"
+          HASH="$(sha256sum "$XPI" | awk '{print $1}')"
+          UPDATE_LINK="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/FormRelay-${TAG}-firefox-signed.xpi"
+
+          git pull --ff-only origin main
+          cat > updates.json <<EOF
+          {
+            "addons": {
+              "mousashriteh0@gmail.com": {
+                "updates": [
+                  {
+                    "version": "${VERSION}",
+                    "update_link": "${UPDATE_LINK}",
+                    "update_hash": "sha256:${HASH}",
+                    "applications": {
+                      "gecko": {
+                        "strict_min_version": "142.0"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add updates.json
+          if git diff --cached --quiet; then
+            echo "Update manifest is already current."
+          else
+            git commit -m "chore: publish Firefox update manifest for ${TAG}"
+            git push origin HEAD:main
+          fi

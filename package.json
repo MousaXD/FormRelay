@@ -1,6 +1,6 @@
 {
   "name": "formrelay",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Local-first browser extension for exporting web forms to JSON and safely applying completed JSON back to forms.",
   "type": "module",
