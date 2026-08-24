@@ -5,7 +5,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -25,13 +25,6 @@ jobs:
       - name: Bootstrap lockfile
         run: pnpm install --lockfile-only
 
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: pnpm-lockfile
-          path: pnpm-lock.yaml
-          if-no-files-found: error
-
       - name: Frozen install
         run: pnpm install --frozen-lockfile
 
@@ -46,3 +39,15 @@ jobs:
 
       - name: Build Firefox and Chromium
         run: pnpm build
+
+      - name: Commit verified lockfile
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if [ -z "$(git status --porcelain -- pnpm-lock.yaml)" ]; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pnpm-lock.yaml
+          git commit -m "chore: add verified pnpm lockfile"
+          git push
