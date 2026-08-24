@@ -13,7 +13,8 @@ export type ValidatedChange = {
 };
 
 function comparable(field: FormRelayField): unknown {
-  const { value: _value, ...rest } = field;
+  const { value: ignoredValue, ...rest } = field;
+  void ignoredValue;
   return rest;
 }
 
