@@ -20,7 +20,7 @@
     "typecheck": "node scripts/prepare-ci-typecheck.mjs && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint . --rule '@typescript-eslint/no-unsafe-call: off'",
+    "lint": "eslint . --ignore-pattern scripts/prepare-ci-typecheck.mjs --rule '@typescript-eslint/no-unsafe-call: off'",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
