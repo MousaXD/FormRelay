@@ -3,7 +3,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['.output/**', '.wxt/**', 'dist/**', 'coverage/**'] },
+  { ignores: ['.output/**', '.wxt/**', 'dist/**', 'coverage/**', 'eslint.config.js'] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -15,7 +15,7 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-non-null-assertion': 'error'
+      '@typescript-eslint/no-non-null-assertion': 'error',
     },
   },
 );
