@@ -12,7 +12,15 @@ jobs:
       - uses: pnpm/action-setup@v6
         with: { version: 11.23.0, run_install: false }
       - uses: actions/setup-node@v6
-        with: { node-version: 22.12.0, cache: pnpm }
+        with: { node-version: 22.12.0 }
+      - name: Bootstrap lockfile
+        run: pnpm install --lockfile-only
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnpm-lockfile
+          path: pnpm-lock.yaml
+          if-no-files-found: error
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
