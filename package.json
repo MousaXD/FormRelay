@@ -1,0 +1,48 @@
+{
+  "name": "formrelay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first browser extension for exporting web forms to JSON and safely applying completed JSON back to forms.",
+  "type": "module",
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "postinstall": "wxt prepare",
+    "dev": "wxt -b firefox --mv3",
+    "dev:chromium": "wxt -b chrome --mv3",
+    "build": "pnpm build:firefox && pnpm build:chromium",
+    "build:firefox": "wxt build -b firefox --mv3",
+    "build:chromium": "wxt build -b chrome --mv3",
+    "zip:firefox": "wxt zip -b firefox --mv3",
+    "zip:chromium": "wxt zip -b chrome --mv3",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@wxt-dev/module-react": "1.2.2",
+    "eslint": "10.8.1",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "happy-dom": "20.11.2",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vitest": "4.1.10",
+    "wxt": "0.21.4"
+  }
+}
