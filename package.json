@@ -17,10 +17,10 @@
     "build:chromium": "wxt build -b chrome --mv3",
     "zip:firefox": "wxt zip -b firefox --mv3",
     "zip:chromium": "wxt zip -b chrome --mv3",
-    "typecheck": "node scripts/prepare-ci-typecheck.mjs && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint . --ignore-pattern scripts/prepare-ci-typecheck.mjs --rule '@typescript-eslint/no-unsafe-call: off'",
+    "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
