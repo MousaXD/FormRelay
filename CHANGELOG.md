@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 - 2026-08-25
+
+- Remove the self-hosted Firefox `update_url` as a migration bridge from self-distribution to the public AMO channel.
+- Keep the permanent Firefox extension ID, Mozilla signing, icon artwork, permissions, and privacy behavior unchanged.
+- Existing v0.1.3 self-hosted installs can receive v0.1.4 through the existing update manifest; after installing v0.1.4, Firefox can discover the next listed AMO version automatically.
+
 ## 0.1.3 - 2026-08-25
 
 - Replace the default extension artwork with the new FormRelay app icon across Firefox and Chromium packages.
