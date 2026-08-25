@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 - 2026-08-25
+
+- Replace the default extension artwork with the new FormRelay app icon across Firefox and Chromium packages.
+- Keep Mozilla signing, self-hosted Firefox updates, permissions, and privacy behavior unchanged.
+
 ## 0.1.2 - 2026-08-25
 
 - Automate unlisted Mozilla signing for new Firefox releases using GitHub Actions.
