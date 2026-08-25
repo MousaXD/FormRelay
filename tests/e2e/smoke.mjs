@@ -1,5 +1,6 @@
 import http from 'node:http';
-import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Builder, Browser, By, Key, until } from 'selenium-webdriver';
@@ -7,20 +8,21 @@ import chrome from 'selenium-webdriver/chrome.js';
 import firefox from 'selenium-webdriver/firefox.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const firefoxBuild = path.join(repoRoot, '.output/firefox-mv3');
-const chromiumBuild = path.join(repoRoot, '.output/chrome-mv3');
+const sourceFirefoxBuild = path.join(repoRoot, '.output/firefox-mv3');
+const sourceChromiumBuild = path.join(repoRoot, '.output/chrome-mv3');
 const fixturePath = path.join(repoRoot, 'tests/e2e/fixtures/basic-form.html');
 const harnessDir = path.join(repoRoot, 'tests/e2e/harness');
 const ADDON_ID = 'mousashriteh0@gmail.com';
 
-async function prepareBuild(buildDir, browser) {
-  const target = path.join(buildDir, 'e2e');
+async function prepareBuild(sourceDir, targetDir, browser) {
+  await cp(sourceDir, targetDir, { recursive: true });
+  const target = path.join(targetDir, 'e2e');
   await mkdir(target, { recursive: true });
   await cp(path.join(harnessDir, 'harness.html'), path.join(target, 'harness.html'));
   await cp(path.join(harnessDir, 'harness.js'), path.join(target, 'harness.js'));
 
   if (browser === 'chromium') {
-    const manifestPath = path.join(buildDir, 'manifest.json');
+    const manifestPath = path.join(targetDir, 'manifest.json');
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
     manifest.commands = {
       _execute_action: { suggested_key: { default: 'Ctrl+Shift+Y' } },
@@ -67,7 +69,7 @@ async function assertPopupShell(driver, popupUrl) {
   if ((await heading.getText()) !== 'FormRelay') throw new Error('Popup shell did not load.');
 }
 
-async function firefoxSmoke(targetUrl) {
+async function firefoxSmoke(targetUrl, firefoxBuild) {
   const options = new firefox.Options().addArguments('-headless');
   const driver = await new Builder()
     .forBrowser(Browser.FIREFOX)
@@ -116,7 +118,7 @@ async function findChromiumExtensionId(driver) {
   }, 10000);
 }
 
-async function chromiumSmoke(targetUrl) {
+async function chromiumSmoke(targetUrl, chromiumBuild) {
   const options = new chrome.Options().addArguments(
     '--headless=new',
     '--no-sandbox',
@@ -151,16 +153,21 @@ async function chromiumSmoke(targetUrl) {
 }
 
 async function main() {
-  await prepareBuild(firefoxBuild, 'firefox');
-  await prepareBuild(chromiumBuild, 'chromium');
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'formrelay-e2e-'));
+  const firefoxBuild = path.join(tempRoot, 'firefox');
+  const chromiumBuild = path.join(tempRoot, 'chromium');
   const server = await fixtureServer();
+
   try {
-    const firefoxResult = await firefoxSmoke(server.url);
+    await prepareBuild(sourceFirefoxBuild, firefoxBuild, 'firefox');
+    await prepareBuild(sourceChromiumBuild, chromiumBuild, 'chromium');
+    const firefoxResult = await firefoxSmoke(server.url, firefoxBuild);
     console.log('Firefox extension smoke:', firefoxResult);
-    const chromiumResult = await chromiumSmoke(server.url);
+    const chromiumResult = await chromiumSmoke(server.url, chromiumBuild);
     console.log('Chromium extension smoke:', chromiumResult);
   } finally {
     await server.close();
+    await rm(tempRoot, { recursive: true, force: true });
   }
 }
 
