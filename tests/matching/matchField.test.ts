@@ -18,11 +18,38 @@ describe('matchField', () => {
     expect(matchField(imported, [{ field: current, index: 2 }]).confidence).toBe(0.94);
   });
 
-  it('refuses ambiguous duplicates', () => {
+  it('refuses ambiguous duplicate names', () => {
     const imported = textField({ field_id: 'fr_aaaa0000', name: 'x', dom_id: null, label: 'Same' });
     const a = textField({ field_id: 'fr_00000001', name: 'x', dom_id: null, label: 'Same' });
     const b = textField({ field_id: 'fr_00000002', name: 'x', dom_id: null, label: 'Same' });
     expect(matchField(imported, [{ field: a, index: 0 }, { field: b, index: 1 }]).candidate).toBeNull();
+  });
+
+  it('refuses ambiguous duplicate labels when stronger identity is absent', () => {
+    const imported = textField({
+      field_id: 'fr_aaaa0000',
+      name: null,
+      dom_id: null,
+      label: 'Shared label',
+    });
+    const a = textField({
+      field_id: 'fr_00000001',
+      name: null,
+      dom_id: null,
+      label: 'Shared label',
+    });
+    const b = textField({
+      field_id: 'fr_00000002',
+      name: null,
+      dom_id: null,
+      label: 'Shared label',
+    });
+    const result = matchField(imported, [
+      { field: a, index: 0 },
+      { field: b, index: 1 },
+    ]);
+    expect(result.candidate).toBeNull();
+    expect(result.ambiguous).toBe(true);
   });
 
   it('leaves stale unrelated fields unresolved', () => {

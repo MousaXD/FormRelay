@@ -16,6 +16,14 @@ describe('FormRelay v1 schema', () => {
     expect(Object.prototype.hasOwnProperty.call(Object.prototype, 'polluted')).toBe(false);
   });
 
+  it('rejects duplicate imported field IDs', () => {
+    const duplicate = textField({ field_id: 'fr_deadbeef' });
+    const result = formRelaySchema.safeParse(
+      formDocument([duplicate, { ...duplicate, name: 'other', dom_id: 'other' }]),
+    );
+    expect(result.success).toBe(false);
+  });
+
   it('rejects malformed select options', () => {
     const bad: unknown = {
       ...formDocument(),

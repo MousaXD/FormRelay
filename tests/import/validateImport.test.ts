@@ -37,6 +37,37 @@ describe('validateImport', () => {
     expect(validateImport(imported, current)[0]?.status).toBe('invalid');
   });
 
+  it('enforces one imported field to one live field allocation', () => {
+    const currentField = textField({
+      field_id: 'fr_11111111',
+      name: 'answer',
+      dom_id: 'answer',
+    });
+    const first = { ...currentField, value: 'first' };
+    const second = {
+      ...currentField,
+      field_id: 'fr_22222222',
+      value: 'second',
+    };
+
+    const changes = validateImport(formDocument([first, second]), formDocument([currentField]));
+    expect(changes[0]?.currentIndex).toBe(0);
+    expect(changes[1]?.status).toBe('unresolved');
+    expect(changes.filter((change) => change.currentIndex === 0)).toHaveLength(1);
+  });
+
+  it('keeps valid distinct imported fields mapped to distinct live fields', () => {
+    const first = textField({ field_id: 'fr_11111111', name: 'first', dom_id: 'first' });
+    const second = textField({ field_id: 'fr_22222222', name: 'second', dom_id: 'second' });
+    const imported = formDocument([
+      { ...first, value: 'A' },
+      { ...second, value: 'B' },
+    ]);
+    const changes = validateImport(imported, formDocument([first, second]));
+    expect(changes.map((change) => change.status)).toEqual(['ready', 'ready']);
+    expect(changes.map((change) => change.currentIndex)).toEqual([0, 1]);
+  });
+
   it('rejects invented select and checkbox-group options', () => {
     const imported = selectDocument();
     const select = firstField(imported);

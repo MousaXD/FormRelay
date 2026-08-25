@@ -108,6 +108,21 @@ describe('extractForm', () => {
     expect(fields[1]?.options).toEqual([{ value: 'a', label: 'A' }]);
   });
 
+  it('excludes unsupported multi-select controls instead of misrepresenting them', () => {
+    document.body.innerHTML = `
+      <form>
+        <select name="roles" multiple>
+          <option value="admin">Admin</option>
+          <option value="editor">Editor</option>
+        </select>
+        <input name="supported">
+      </form>`;
+    const fields = extractForm(document).document.fields;
+    expect(fields).toHaveLength(1);
+    expect(fields[0]?.name).toBe('supported');
+    expect(fields.some((field) => field.name === 'roles')).toBe(false);
+  });
+
   it('disambiguates duplicate semantic fingerprints only when necessary', () => {
     document.body.innerHTML = `
       <form>
