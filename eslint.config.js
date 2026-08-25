@@ -3,7 +3,17 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['.output/**', '.wxt/**', 'dist/**', 'coverage/**', 'eslint.config.js'] },
+  {
+    ignores: [
+      '.output/**',
+      '.wxt/**',
+      'dist/**',
+      'coverage/**',
+      'eslint.config.js',
+      'tests/e2e/**/*.mjs',
+      'tests/e2e/harness/*.js',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

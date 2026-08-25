@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FormRelay browser smoke fixture</title>
+</head>
+<body>
+  <form id="smoke-form">
+    <label for="full-name">Full name</label>
+    <input id="full-name" name="full_name" value="existing-private-value">
+
+    <label for="country">Country</label>
+    <select id="country" name="country">
+      <option value="ae">United Arab Emirates</option>
+      <option value="jo">Jordan</option>
+    </select>
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" value="secret-password">
+
+    <button type="submit">Submit</button>
+  </form>
+  <script>
+    window.__formRelaySubmitCount = 0;
+    document.querySelector('#smoke-form').addEventListener('submit', (event) => {
+      event.preventDefault();
+      window.__formRelaySubmitCount += 1;
+    });
+  </script>
+</body>
+</html>
