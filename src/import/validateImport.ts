@@ -58,20 +58,27 @@ export function validateImport(
   current: FormRelayDocument,
 ): ValidatedChange[] {
   const candidates = current.fields.map((field, index) => ({ field, index }));
+  const consumedCurrentIndexes = new Set<number>();
+  const validated: ValidatedChange[] = [];
 
-  return imported.fields.map((field): ValidatedChange => {
-    const match = matchField(field, candidates);
+  for (const field of imported.fields) {
+    const availableCandidates = candidates.filter(
+      (candidate) => !consumedCurrentIndexes.has(candidate.index),
+    );
+    const match = matchField(field, availableCandidates);
     if (!match.candidate) {
-      return {
+      validated.push({
         imported: field,
         current: field,
         currentIndex: -1,
         confidence: match.confidence,
         status: 'unresolved',
         message: match.reason,
-      };
+      });
+      continue;
     }
 
+    consumedCurrentIndexes.add(match.candidate.index);
     const currentField = match.candidate.field;
     const base = {
       imported: field,
@@ -81,44 +88,52 @@ export function validateImport(
     };
 
     if (JSON.stringify(comparable(field)) !== JSON.stringify(comparable(currentField))) {
-      return {
+      validated.push({
         ...base,
         status: 'invalid',
         message: 'Structural metadata differs from the live form.',
-      };
+      });
+      continue;
     }
     if (currentField.disabled) {
-      return {
+      validated.push({
         ...base,
         status: 'invalid',
         message: 'Field is disabled and will not be filled.',
-      };
+      });
+      continue;
     }
     if (currentField.readonly) {
-      return {
+      validated.push({
         ...base,
         status: 'invalid',
         message: 'Field is read-only and will not be filled.',
-      };
+      });
+      continue;
     }
-    if (isEmptyValue(field.value)) return { ...base, status: 'empty' };
+    if (isEmptyValue(field.value)) {
+      validated.push({ ...base, status: 'empty' });
+      continue;
+    }
 
     if (
       (field.type === 'select' || field.type === 'radio') &&
       !field.options.some((option) => option.value === field.value)
     ) {
-      return { ...base, status: 'invalid', message: 'Value is not an allowed option.' };
+      validated.push({ ...base, status: 'invalid', message: 'Value is not an allowed option.' });
+      continue;
     }
 
     if (
       field.type === 'checkbox_group' &&
       field.value.some((value) => !field.options.some((option) => option.value === value))
     ) {
-      return {
+      validated.push({
         ...base,
         status: 'invalid',
         message: 'One or more values are not allowed options.',
-      };
+      });
+      continue;
     }
 
     if (
@@ -126,9 +141,12 @@ export function validateImport(
       field.max_length != null &&
       field.value.length > field.max_length
     ) {
-      return { ...base, status: 'invalid', message: 'Value exceeds max_length.' };
+      validated.push({ ...base, status: 'invalid', message: 'Value exceeds max_length.' });
+      continue;
     }
 
-    return { ...base, status: 'ready' };
-  });
+    validated.push({ ...base, status: 'ready' });
+  }
+
+  return validated;
 }

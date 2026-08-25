@@ -126,7 +126,21 @@ const formRelayObjectSchema = z
       .strict(),
     fields: z.array(formFieldSchema).max(LIMITS.fields),
   })
-  .strict();
+  .strict()
+  .superRefine((document, context) => {
+    const seen = new Set<string>();
+    document.fields.forEach((field, index) => {
+      if (seen.has(field.field_id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['fields', index, 'field_id'],
+          message: 'Duplicate field_id is not allowed.',
+        });
+      } else {
+        seen.add(field.field_id);
+      }
+    });
+  });
 
 export const formRelaySchema = z
   .custom<unknown>((value) => !containsForbiddenObjectKey(value), 'Forbidden object key')
