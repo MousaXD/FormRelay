@@ -1,6 +1,6 @@
 import type { FormRelayField } from '../schema/formSchema';
 import type { ValidatedChange } from '../import/validateImport';
-import { controlsForField, primaryFormRoot } from './controls';
+import { primaryFormRoot, resolveControlsForField } from './controls';
 import { setNativeValue } from './events';
 
 function probeTextControl(
@@ -30,12 +30,15 @@ function probeTextControl(
 export function validateLiveFieldValue(
   field: FormRelayField,
   root: ParentNode,
+  targetField: FormRelayField = field,
 ): string | null {
   if (typeof field.value !== 'string' || field.value === '') return null;
   if (field.type === 'select' || field.type === 'radio') return null;
 
-  const controls = controlsForField(field, root);
-  const element = controls.find(
+  const resolution = resolveControlsForField(targetField, root);
+  if (resolution.error) return resolution.error;
+
+  const element = resolution.controls.find(
     (control): control is HTMLInputElement | HTMLTextAreaElement =>
       control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement,
   );
@@ -53,7 +56,7 @@ export function validateLiveChanges(
   const root = primaryFormRoot(doc);
   return changes.map((change) => {
     if (change.status !== 'ready') return change;
-    const message = validateLiveFieldValue(change.imported, root);
+    const message = validateLiveFieldValue(change.imported, root, change.current);
     return message ? { ...change, status: 'invalid', message } : change;
   });
 }

@@ -2,7 +2,7 @@ import type { FormRelayDocument } from '../schema/formSchema';
 import { extractForm } from '../extraction/extractForm';
 import { comparePage, validateImport } from '../import/validateImport';
 import { fillCheckbox } from './fillCheckbox';
-import { controlsForField, primaryFormRoot } from './controls';
+import { primaryFormRoot, resolveControlsForField } from './controls';
 import { validateLiveFieldValue } from './constraints';
 import { fillInput } from './fillInput';
 import { fillRadio } from './fillRadio';
@@ -38,10 +38,13 @@ export function fillForm(
     }
 
     const field = change.imported;
-    const controls = controlsForField(change.current, root);
 
     try {
-      const constraintError = validateLiveFieldValue(field, root);
+      const resolution = resolveControlsForField(change.current, root);
+      if (resolution.error) throw new Error(resolution.error);
+      const controls = resolution.controls;
+
+      const constraintError = validateLiveFieldValue(field, root, change.current);
       if (constraintError) throw new Error(constraintError);
 
       if (field.type === 'radio') {
