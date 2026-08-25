@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5 - 2026-08-25
+
+- Submit FormRelay to the public Mozilla Add-ons listed channel so users can install it from AMO with the standard Add to Firefox flow.
+- Move Firefox update delivery from the self-hosted update manifest to Mozilla-managed AMO updates.
+- Keep the permanent Firefox extension ID, reviewer source archive, icon artwork, permissions, and privacy behavior unchanged.
+- Preserve v0.1.4 as the migration bridge for older self-hosted installs.
+
 ## 0.1.4 - 2026-08-25
 
 - Remove the self-hosted Firefox `update_url` as a migration bridge from self-distribution to the public AMO channel.
