@@ -86,6 +86,7 @@ export function extractSingleField(
   if (decision.blocked) return { field: null, excludedSensitive: true };
 
   if (element instanceof HTMLSelectElement) {
+    if (element.multiple) return { field: null, excludedSensitive: false };
     return {
       field: {
         ...base(element, 'select', context),
