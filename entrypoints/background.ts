@@ -95,17 +95,29 @@ export default defineBackground(() => {
     return status();
   };
 
-  browser.runtime.onMessage.addListener((message: unknown) => {
-    if (message === null || typeof message !== 'object') return undefined;
+  browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+    if (message === null || typeof message !== 'object') return false;
     const request = message as McpControlRequest;
-    if (request.type === 'FORMRELAY_MCP_STATUS') return status();
-    if (request.type === 'FORMRELAY_MCP_CONNECT') return connect();
-    if (request.type === 'FORMRELAY_MCP_DISCONNECT') {
-      disconnect();
-      lastError = null;
-      return status();
+    if (
+      request.type !== 'FORMRELAY_MCP_STATUS' &&
+      request.type !== 'FORMRELAY_MCP_CONNECT' &&
+      request.type !== 'FORMRELAY_MCP_DISCONNECT'
+    ) {
+      return false;
     }
-    return undefined;
+
+    void (async () => {
+      if (request.type === 'FORMRELAY_MCP_CONNECT') {
+        sendResponse(await connect());
+        return;
+      }
+      if (request.type === 'FORMRELAY_MCP_DISCONNECT') {
+        disconnect();
+        lastError = null;
+      }
+      sendResponse(await status());
+    })();
+    return true;
   });
 
   void permissionGranted().then((granted) => {

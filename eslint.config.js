@@ -10,6 +10,7 @@ export default tseslint.config(
       'dist/**',
       'coverage/**',
       'eslint.config.js',
+      'mcp/**',
       'tests/e2e/**/*.mjs',
       'tests/e2e/harness/*.js',
     ],
