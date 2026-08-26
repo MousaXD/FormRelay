@@ -10,6 +10,7 @@ export type ValidatedChange = {
   confidence: number;
   status: ChangeStatus;
   message?: string;
+  liveValue?: FormRelayField['value'];
 };
 
 function comparable(field: FormRelayField): unknown {
@@ -42,12 +43,33 @@ export function comparePage(
       (Boolean(imported.form.name) && imported.form.name === current.form.name) ||
       (!imported.form.id && !imported.form.name && !current.form.id && !current.form.name);
 
-    return samePath && sameForm
-      ? { matches: true, warning: null }
-      : {
-          matches: false,
-          warning: 'This JSON appears to belong to another form or webpage.',
-        };
+    if (!samePath || !sameForm) {
+      return {
+        matches: false,
+        warning: 'This JSON appears to belong to another form or webpage.',
+      };
+    }
+
+    const importedIdentity = imported.page.identity;
+    const currentIdentity = current.page.identity;
+    if (importedIdentity && currentIdentity) {
+      return importedIdentity === currentIdentity
+        ? { matches: true, warning: null }
+        : {
+            matches: false,
+            warning: 'This page has different route or record state than the exported JSON.',
+          };
+    }
+
+    if (importedIdentity || currentIdentity) {
+      return {
+        matches: false,
+        warning:
+          'This JSON predates strong page identity. Review the target carefully before overriding this warning.',
+      };
+    }
+
+    return { matches: true, warning: null };
   } catch {
     return { matches: false, warning: 'This JSON contains an invalid page URL.' };
   }

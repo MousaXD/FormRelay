@@ -4,7 +4,7 @@ FormRelay is a local-first browser extension that turns a webpage form into stru
 
 **Source-available for personal and noncommercial use.** FormRelay is licensed under PolyForm Noncommercial 1.0.0. It is not presented as OSI Open Source. Commercial use requires separate written authorization; see `COMMERCIAL-LICENSE.md`.
 
-## What v0.1.0 does
+## What FormRelay does
 
 1. Open a page containing a normal HTML form.
 2. Click FormRelay. The extension inspects only the active tab after that explicit interaction.
@@ -12,24 +12,26 @@ FormRelay is a local-first browser extension that turns a webpage form into stru
 4. Give the prompt to any external assistant manually.
 5. Paste or import the returned JSON.
 6. FormRelay applies strict size, JSON, Zod, version, structure, page, matching, and constraint checks.
-7. Review every proposed change and explicitly choose **Fill Safe Fields**.
-8. Submit the page yourself. FormRelay never submits, continues, purchases, pays, signs, confirms, or agrees on your behalf.
+7. Review every proposed change and explicitly choose **Fill Safe Fields**. Existing values may be read locally for this review, but they are never added to exported JSON or the AI prompt.
+8. Submit the page yourself. FormRelay never clicks a submit/continue/pay/confirm control or directly invokes form submission. Webpage scripts can still react to normal `input`/`change` events caused by a real field update.
 
 ## Privacy and permissions
 
-v0.1.0 has **zero telemetry, analytics, tracking, remote API calls, accounts, backend servers, databases, or cloud storage**.
+FormRelay has **zero telemetry, analytics, tracking, remote API calls, accounts, backend servers, databases, or cloud storage**.
 
 Production permissions are only `activeTab` and `scripting`. FormRelay does not request `<all_urls>`. The page bridge is a WXT unlisted script injected only into the active tab following extension interaction.
 
 Existing page values are not included in exported JSON. Passwords, file inputs, hidden inputs, payment-card fields, CVC/CVV, one-time codes, API keys/tokens, private keys, and similar sensitive fields are excluded conservatively.
 
+The exported display URL removes credentials, query strings, and fragments. New exports also carry a compact route identity derived locally from the full URL so record-like query/hash changes can trigger a wrong-page warning without exposing those URL components verbatim. Older JSON without this identity remains parseable but requires an explicit override when used with a newer identified page.
+
 ## Supported controls
 
-Text, email, URL, telephone, number, date, time, search, textarea, select, standalone checkbox, checkbox groups, and radio groups.
+Text, email, URL, telephone, number, date, time, search, textarea, single-select, standalone checkbox, checkbox groups, and radio groups.
 
-## Deliberately unsupported in v0.1.0
+## Deliberately unsupported
 
-Passwords, payments, files, CAPTCHA, hidden fields, autonomous browsing, automatic submission, direct LLM APIs, Shadow DOM traversal, and iframe traversal. On pages with multiple forms, v0.1.0 deterministically selects the form with the most supported controls; orphan controls are supported when no `<form>` exists.
+Passwords, payments, files, CAPTCHA, hidden fields, multi-select controls, autonomous browsing, direct submission, direct LLM APIs, Shadow DOM traversal, and iframe traversal. On pages with multiple forms, FormRelay deterministically selects the form with the most supported controls; orphan controls are supported when no `<form>` exists.
 
 ## Development
 

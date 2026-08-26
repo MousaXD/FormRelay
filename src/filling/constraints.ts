@@ -1,4 +1,5 @@
 import type { FormRelayField } from '../schema/formSchema';
+import { LIMITS } from '../security/limits';
 import type { ValidatedChange } from '../import/validateImport';
 import { primaryFormRoot, resolveControlsForField } from './controls';
 import { setNativeValue } from './events';
@@ -49,6 +50,49 @@ export function validateLiveFieldValue(
   return probeTextControl(element, field.value);
 }
 
+function liveFieldValue(field: FormRelayField, root: ParentNode): FormRelayField['value'] | null {
+  const resolution = resolveControlsForField(field, root);
+  if (resolution.error) return null;
+  const controls = resolution.controls;
+
+  if (field.type === 'radio') {
+    const selected = controls.find(
+      (control): control is HTMLInputElement =>
+        control instanceof HTMLInputElement && !control.disabled && control.checked,
+    );
+    return selected?.value ?? '';
+  }
+
+  if (field.type === 'checkbox_group') {
+    return controls
+      .filter(
+        (control): control is HTMLInputElement =>
+          control instanceof HTMLInputElement && !control.disabled && control.checked,
+      )
+      .map((control) => control.value.slice(0, LIMITS.optionChars));
+  }
+
+  if (field.type === 'checkbox') {
+    const element = controls.find(
+      (control): control is HTMLInputElement => control instanceof HTMLInputElement,
+    );
+    return element?.checked ?? null;
+  }
+
+  if (field.type === 'select') {
+    const element = controls.find(
+      (control): control is HTMLSelectElement => control instanceof HTMLSelectElement,
+    );
+    return element?.value.slice(0, LIMITS.optionChars) ?? null;
+  }
+
+  const element = controls.find(
+    (control): control is HTMLInputElement | HTMLTextAreaElement =>
+      control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement,
+  );
+  return element?.value.slice(0, LIMITS.fieldValueChars) ?? null;
+}
+
 export function validateLiveChanges(
   changes: ValidatedChange[],
   doc: Document,
@@ -57,6 +101,9 @@ export function validateLiveChanges(
   return changes.map((change) => {
     if (change.status !== 'ready') return change;
     const message = validateLiveFieldValue(change.imported, root, change.current);
-    return message ? { ...change, status: 'invalid', message } : change;
+    if (message) return { ...change, status: 'invalid', message };
+
+    const liveValue = liveFieldValue(change.current, root);
+    return liveValue === null ? change : { ...change, liveValue };
   });
 }

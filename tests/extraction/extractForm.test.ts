@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { extractForm } from '../../src/extraction/extractForm';
+import { LIMITS } from '../../src/security/limits';
 
 describe('extractForm', () => {
   beforeEach(() => {
@@ -27,6 +28,7 @@ describe('extractForm', () => {
       </form>`;
 
     const result = extractForm(document);
+    expect(result.document.page.identity).toMatch(/^frp_[0-9a-f]{16}$/);
     expect(result.document.fields.map((field) => field.type)).toEqual([
       'text',
       'email',
@@ -121,6 +123,24 @@ describe('extractForm', () => {
     expect(fields).toHaveLength(1);
     expect(fields[0]?.name).toBe('supported');
     expect(fields.some((field) => field.name === 'roles')).toBe(false);
+  });
+
+  it('fails closed when a form exceeds the exported field limit', () => {
+    const inputs = Array.from(
+      { length: LIMITS.fields + 1 },
+      (_, index) => `<input name="field-${index}">`,
+    ).join('');
+    document.body.innerHTML = `<form>${inputs}</form>`;
+    expect(() => extractForm(document)).toThrow(`${LIMITS.fields}-field safety limit`);
+  });
+
+  it('fails closed when a select exceeds the exported option limit', () => {
+    const options = Array.from(
+      { length: LIMITS.optionsPerField + 1 },
+      (_, index) => `<option value="${index}">Option ${index}</option>`,
+    ).join('');
+    document.body.innerHTML = `<form><select name="huge">${options}</select></form>`;
+    expect(() => extractForm(document)).toThrow(`${LIMITS.optionsPerField}-option safety limit`);
   });
 
   it('disambiguates duplicate semantic fingerprints only when necessary', () => {

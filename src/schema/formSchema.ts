@@ -116,6 +116,7 @@ const formRelayObjectSchema = z
       .object({
         title: safeString(LIMITS.labelChars),
         url: safeString(LIMITS.urlChars),
+        identity: z.string().regex(/^frp_[0-9a-f]{16}$/).optional(),
       })
       .strict(),
     form: z

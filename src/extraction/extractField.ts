@@ -65,17 +65,19 @@ function base(
 }
 
 function options(select: HTMLSelectElement): FormRelayOption[] {
-  return Array.from(select.options)
-    .filter(
-      (option) =>
-        !option.disabled &&
-        !(option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled),
-    )
-    .map((option) => {
-      const value = sanitizeOpaqueText(option.value, LIMITS.optionChars) ?? '';
-      const label = sanitizeText(option.label || option.text, LIMITS.optionChars) ?? value;
-      return { value, label };
-    });
+  const enabled = Array.from(select.options).filter(
+    (option) =>
+      !option.disabled &&
+      !(option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled),
+  );
+  if (enabled.length > LIMITS.optionsPerField) {
+    throw new Error(`Select exceeds the ${LIMITS.optionsPerField}-option safety limit.`);
+  }
+  return enabled.map((option) => {
+    const value = sanitizeOpaqueText(option.value, LIMITS.optionChars) ?? '';
+    const label = sanitizeText(option.label || option.text, LIMITS.optionChars) ?? value;
+    return { value, label };
+  });
 }
 
 export function extractSingleField(
@@ -129,12 +131,14 @@ export function extractChoiceGroup(
   const first = elements[0];
   if (!first) throw new Error('Choice group cannot be empty.');
 
-  const choices = elements
-    .filter((element) => !element.disabled)
-    .map((element) => {
-      const value = sanitizeOpaqueText(element.value, LIMITS.optionChars) ?? '';
-      return { value, label: getLabel(element) ?? value };
-    });
+  const enabled = elements.filter((element) => !element.disabled);
+  if (enabled.length > LIMITS.optionsPerField) {
+    throw new Error(`Choice group exceeds the ${LIMITS.optionsPerField}-option safety limit.`);
+  }
+  const choices = enabled.map((element) => {
+    const value = sanitizeOpaqueText(element.value, LIMITS.optionChars) ?? '';
+    return { value, label: getLabel(element) ?? value };
+  });
 
   const baseData = {
     ...base(first, kind, context),

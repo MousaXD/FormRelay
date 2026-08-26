@@ -3,7 +3,7 @@ import { comparePage, validateImport } from '../../src/import/validateImport';
 import type { FormRelayDocument, FormRelayField } from '../../src/schema/formSchema';
 import { formDocument, textField } from '../fixtures/formRelay';
 
-function selectDocument(url = 'https://example.com/apply?x=1'): FormRelayDocument {
+function selectDocument(url = 'https://example.com/apply'): FormRelayDocument {
   const field: Extract<FormRelayField, { type: 'select' }> = {
     ...textField(),
     type: 'select',
@@ -23,8 +23,29 @@ function firstField(document: FormRelayDocument): FormRelayField {
 }
 
 describe('validateImport', () => {
-  it('allows query/hash changes but warns on another path or form', () => {
-    expect(comparePage(selectDocument(), selectDocument('https://example.com/apply?x=2#part')).matches).toBe(true);
+  it('requires matching strong page identity when route state is available', () => {
+    const imported = selectDocument();
+    imported.page.identity = 'frp_1111111111111111';
+    const same = selectDocument();
+    same.page.identity = 'frp_1111111111111111';
+    const otherRecord = selectDocument();
+    otherRecord.page.identity = 'frp_2222222222222222';
+
+    expect(comparePage(imported, same).matches).toBe(true);
+    expect(comparePage(imported, otherRecord).matches).toBe(false);
+    expect(comparePage(imported, otherRecord).warning).toContain('route or record state');
+  });
+
+  it('requires explicit override for legacy JSON when the live page has strong identity', () => {
+    const legacy = selectDocument();
+    const current = selectDocument();
+    current.page.identity = 'frp_1111111111111111';
+
+    expect(comparePage(legacy, current).matches).toBe(false);
+    expect(comparePage(legacy, current).warning).toContain('predates strong page identity');
+  });
+
+  it('still rejects another path or form before considering route identity', () => {
     expect(comparePage(selectDocument(), selectDocument('https://example.com/other')).matches).toBe(false);
     const otherForm = selectDocument();
     otherForm.form.id = 'another-form';

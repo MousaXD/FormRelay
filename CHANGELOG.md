@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Add privacy-preserving page route identity so query/hash record changes trigger wrong-page warnings without exporting those URL components verbatim.
+- Require explicit override when legacy JSON without route identity is used on a newer identified page.
+- Show real current values locally in the review diff without adding them to exported JSON or AI prompts.
+- Fail closed when extraction would exceed the import contract's field, option, or 512 KiB limits.
+- Avoid dispatching synthetic input/change events for no-op writes.
+- Clarify that FormRelay never directly submits forms while webpage scripts may react to legitimate field-change events.
+
 ## 0.1.5 - 2026-08-25
 
 - Submit FormRelay to the public Mozilla Add-ons listed channel so users can install it from AMO with the standard Add to Firefox flow.

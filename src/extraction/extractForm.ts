@@ -11,6 +11,7 @@ import {
 import { disambiguateFieldFingerprint } from './fieldFingerprint';
 import { safeSupportedControls, selectFormRoot } from './formRoot';
 import { getLabel } from './labels';
+import { pageIdentity } from './pageIdentity';
 
 export type ExtractedForm = { document: FormRelayDocument; excludedSensitiveCount: number };
 
@@ -34,6 +35,13 @@ function safePageUrl(doc: Document): string {
   }
 }
 
+function addField(fields: FormRelayField[], field: FormRelayField): void {
+  if (fields.length >= LIMITS.fields) {
+    throw new Error(`Form exceeds the ${LIMITS.fields}-field safety limit.`);
+  }
+  fields.push(field);
+}
+
 function disambiguateDuplicates(fields: FormRelayField[]): void {
   const counts = new Map<string, number>();
   for (const field of fields) {
@@ -45,6 +53,13 @@ function disambiguateDuplicates(fields: FormRelayField[]): void {
       field.field_id = disambiguateFieldFingerprint(field.field_id, index);
     }
   });
+}
+
+function enforceExportSize(document: FormRelayDocument): void {
+  const bytes = new TextEncoder().encode(JSON.stringify(document)).byteLength;
+  if (bytes > LIMITS.importBytes) {
+    throw new Error('Extracted form exceeds the 512 KiB safety limit.');
+  }
 }
 
 export function extractForm(doc: Document = document): ExtractedForm {
@@ -76,7 +91,7 @@ export function extractForm(doc: Document = document): ExtractedForm {
           (name ? candidate.name === name : candidate === control),
       );
       group.forEach((element) => consumed.add(element));
-      fields.push(extractChoiceGroup(group, { formKey: key, position }, 'radio'));
+      addField(fields, extractChoiceGroup(group, { formKey: key, position }, 'radio'));
       return;
     }
 
@@ -92,7 +107,8 @@ export function extractForm(doc: Document = document): ExtractedForm {
           )
         : [control];
       group.forEach((element) => consumed.add(element));
-      fields.push(
+      addField(
+        fields,
         group.length > 1
           ? extractChoiceGroup(group, { formKey: key, position }, 'checkbox_group')
           : extractStandaloneCheckbox(control, { formKey: key, position }),
@@ -101,26 +117,27 @@ export function extractForm(doc: Document = document): ExtractedForm {
     }
 
     const result = extractSingleField(control, { formKey: key, position });
-    if (result.field) fields.push(result.field);
+    if (result.field) addField(fields, result.field);
   });
 
   disambiguateDuplicates(fields);
   const form = root instanceof HTMLFormElement ? root : null;
-
-  return {
-    document: {
-      schema: SCHEMA_NAME,
-      schema_version: CURRENT_SCHEMA_VERSION,
-      page: {
-        title: sanitizeText(doc.title, LIMITS.labelChars) ?? '',
-        url: safePageUrl(doc),
-      },
-      form: {
-        id: sanitizeText(form?.id, LIMITS.nameChars),
-        name: sanitizeText(form?.getAttribute('name'), LIMITS.nameChars),
-      },
-      fields,
+  const identity = pageIdentity(doc);
+  const document: FormRelayDocument = {
+    schema: SCHEMA_NAME,
+    schema_version: CURRENT_SCHEMA_VERSION,
+    page: {
+      title: sanitizeText(doc.title, LIMITS.labelChars) ?? '',
+      url: safePageUrl(doc),
+      ...(identity ? { identity } : {}),
     },
-    excludedSensitiveCount,
+    form: {
+      id: sanitizeText(form?.id, LIMITS.nameChars),
+      name: sanitizeText(form?.getAttribute('name'), LIMITS.nameChars),
+    },
+    fields,
   };
+  enforceExportSize(document);
+
+  return { document, excludedSensitiveCount };
 }

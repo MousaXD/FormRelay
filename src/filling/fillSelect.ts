@@ -5,6 +5,7 @@ export function fillSelect(element: HTMLSelectElement, value: string): void {
   if (!Array.from(element.options).some((option) => option.value === value && !option.disabled)) {
     throw new Error('Select option no longer exists.');
   }
+  if (element.value === value) return;
   setNativeValue(element, value);
   dispatchValueEvents(element);
   highlight(element);

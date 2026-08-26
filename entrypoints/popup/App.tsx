@@ -289,7 +289,7 @@ export default function App() {
                 </strong>
                 <span>
                   {change.status === 'ready'
-                    ? `“${shown(change.current.value)}” → “${shown(change.imported.value)}”`
+                    ? `“${shown(change.liveValue ?? change.current.value)}” → “${shown(change.imported.value)}”`
                     : (change.message ?? change.status)}
                 </span>
               </li>
@@ -316,7 +316,7 @@ export default function App() {
         </section>
       )}
 
-      <footer>Nothing uploaded · No accounts · Never auto-submits</footer>
+      <footer>No uploads · No accounts · FormRelay does not directly submit forms</footer>
     </main>
   );
 }

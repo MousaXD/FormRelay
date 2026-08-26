@@ -2,6 +2,7 @@ import { dispatchValueEvents, highlight } from './events';
 
 export function fillCheckbox(element: HTMLInputElement, checked: boolean): void {
   if (element.disabled) throw new Error('Checkbox became disabled.');
+  if (element.checked === checked) return;
   const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked');
   if (typeof descriptor?.set !== 'function') {
     throw new Error('Native checked setter is unavailable.');
