@@ -1,0 +1,24 @@
+{
+  "name": "@formrelay/mcp-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Opt-in local MCP companion for FormRelay.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "bin": {
+    "formrelay-mcp": "./bin/formrelay-mcp.js",
+    "formrelay-native-host": "./bin/formrelay-native-host.js"
+  },
+  "scripts": {
+    "start": "node ./bin/formrelay-mcp.js stdio",
+    "http": "node ./bin/formrelay-mcp.js http",
+    "native-host": "node ./bin/formrelay-native-host.js",
+    "test": "node --test ./test/*.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "zod": "4.4.3"
+  }
+}
