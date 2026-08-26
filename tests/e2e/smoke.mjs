@@ -70,13 +70,15 @@ async function assertPopupShell(driver, popupUrl) {
 }
 
 async function firefoxSmoke(targetUrl, firefoxBuild) {
-  // Firefox requires this explicit launch opt-in before WebDriver may enter the
-  // privileged browser context used only by this test to locate the temporary
-  // extension and grant activeTab permission. It does not affect extension permissions.
-  const options = new firefox.Options().addArguments('-headless', '-remote-allow-system-access');
+  // Current geckodriver requires its own explicit system-access opt-in before
+  // Marionette may enter Firefox's privileged browser context. This is confined
+  // to the E2E process and does not change FormRelay's extension permissions.
+  const options = new firefox.Options().addArguments('-headless');
+  const service = new firefox.ServiceBuilder().addArguments('--allow-system-access');
   const driver = await new Builder()
     .forBrowser(Browser.FIREFOX)
     .setFirefoxOptions(options)
+    .setFirefoxService(service)
     .build();
 
   try {
