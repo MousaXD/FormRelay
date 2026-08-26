@@ -9,8 +9,14 @@ async function send(tabId, request) {
   try {
     return await api.tabs.sendMessage(tabId, request);
   } catch {
-    await api.scripting.executeScript({ target: { tabId }, files: ['form.js'] });
-    return api.tabs.sendMessage(tabId, request);
+    const injected = await api.scripting.executeScript({ target: { tabId }, files: ['form.js'] });
+    const readiness = injected.map((entry) => entry.result ?? null);
+    try {
+      return await api.tabs.sendMessage(tabId, request);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Bridge injection returned ${JSON.stringify(readiness)} but messaging failed: ${reason}`);
+    }
   }
 }
 
