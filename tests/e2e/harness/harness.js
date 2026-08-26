@@ -23,6 +23,11 @@ async function run() {
   const target = tabs.find((tab) => tab.url === targetUrl);
   assert(target?.id != null, `Could not find fixture tab: ${targetUrl}`);
 
+  // Match the production path: FormRelay injects only into the active tab after
+  // user interaction. Keeping the target active also preserves activeTab semantics
+  // in Firefox instead of relying on test-only host permissions.
+  await api.tabs.update(target.id, { active: true });
+
   const extracted = await send(target.id, { type: 'FORMRELAY_EXTRACT' });
   assert(extracted?.type === 'extract', 'Extraction bridge response was invalid.');
   assert(extracted.document.fields.length === 2, 'Expected exactly two supported fields.');
@@ -40,10 +45,10 @@ async function run() {
 
   const preview = await send(target.id, { type: 'FORMRELAY_PREVIEW', document: imported });
   assert(preview?.type === 'preview', 'Preview bridge response was invalid.');
-  assert(
-    preview.changes.filter((change) => change.status === 'ready').length === 1,
-    'Expected exactly one safe ready change.',
-  );
+  const ready = preview.changes.filter((change) => change.status === 'ready');
+  assert(ready.length === 1, 'Expected exactly one safe ready change.');
+  assert(ready[0]?.liveValue === 'Existing private value', 'Local before-value preview was not captured.');
+  assert(extracted.document.fields.find((field) => field.dom_id === 'full-name')?.value === '', 'Live value leaked back into exported JSON.');
 
   const fill = await send(target.id, {
     type: 'FORMRELAY_FILL',
