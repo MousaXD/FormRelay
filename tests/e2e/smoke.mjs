@@ -70,7 +70,10 @@ async function assertPopupShell(driver, popupUrl) {
 }
 
 async function firefoxSmoke(targetUrl, firefoxBuild) {
-  const options = new firefox.Options().addArguments('-headless');
+  // Firefox requires this explicit launch opt-in before WebDriver may enter the
+  // privileged browser context used only by this test to locate the temporary
+  // extension and grant activeTab permission. It does not affect extension permissions.
+  const options = new firefox.Options().addArguments('-headless', '-remote-allow-system-access');
   const driver = await new Builder()
     .forBrowser(Browser.FIREFOX)
     .setFirefoxOptions(options)
