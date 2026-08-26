@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { generatePrompt } from '../../src/ai/generatePrompt';
+import { sendBridgeRequestToTab } from '../../src/browser/bridge';
 import { downloadJson } from '../../src/export/downloadJson';
 import { exportJson } from '../../src/export/exportJson';
 import { parseImport } from '../../src/import/parseImport';
-import { comparePage } from '../../src/import/validateImport';
+import type { McpControlRequest, McpStatus } from '../../src/mcp/control';
+import { isMcpStatus } from '../../src/mcp/control';
+import { mcpPermissionRequest } from '../../src/mcp/permissions';
 import type { FormRelayDocument, FormRelayField } from '../../src/schema/formSchema';
 import type { BridgeRequest, BridgeResponse } from '../../src/types/messages';
 
@@ -14,24 +17,13 @@ async function activeTabId(): Promise<number> {
   return tab.id;
 }
 
-function hasProperty(value: object, key: string): value is Record<string, unknown> {
-  return key in value;
-}
-
-function isBridgeResponse(value: unknown): value is BridgeResponse {
-  if (value === null || typeof value !== 'object' || !hasProperty(value, 'type')) return false;
-  const type = value.type;
-  return type === 'extract' || type === 'preview' || type === 'fill';
-}
-
 async function send(request: BridgeRequest): Promise<BridgeResponse> {
-  const tabId = await activeTabId();
-  await browser.scripting.executeScript({
-    target: { tabId },
-    files: ['content-scripts/form.js'],
-  });
-  const response: unknown = await browser.tabs.sendMessage(tabId, request);
-  if (!isBridgeResponse(response)) throw new Error('Unexpected FormRelay bridge response.');
+  return sendBridgeRequestToTab(await activeTabId(), request);
+}
+
+async function sendMcpControl(request: McpControlRequest): Promise<McpStatus> {
+  const response: unknown = await browser.runtime.sendMessage(request);
+  if (!isMcpStatus(response)) throw new Error('Unexpected MCP bridge status response.');
   return response;
 }
 
@@ -51,6 +43,10 @@ function shown(value: FormRelayField['value']): string {
   return value;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function App() {
   const [current, setCurrent] = useState<FormRelayDocument | null>(null);
   const [excluded, setExcluded] = useState(0);
@@ -62,6 +58,7 @@ export default function App() {
   const [preview, setPreview] = useState<Extract<BridgeResponse, { type: 'preview' }> | null>(null);
   const [wrongPage, setWrongPage] = useState<string | null>(null);
   const [overridePage, setOverridePage] = useState(false);
+  const [mcp, setMcp] = useState<McpStatus | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
@@ -72,6 +69,19 @@ export default function App() {
       setExcluded(response.excludedSensitiveCount);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not inspect this page.');
+    }
+  };
+
+  const refreshMcp = async () => {
+    try {
+      setMcp(await sendMcpControl({ type: 'FORMRELAY_MCP_STATUS' }));
+    } catch (caught) {
+      setMcp({
+        permissionGranted: false,
+        connected: false,
+        connecting: false,
+        error: caught instanceof Error ? caught.message : 'Could not read MCP status.',
+      });
     }
   };
 
@@ -88,6 +98,12 @@ export default function App() {
         if (!active) return;
         setError(caught instanceof Error ? caught.message : 'Could not inspect this page.');
       });
+
+    void sendMcpControl({ type: 'FORMRELAY_MCP_STATUS' })
+      .then((status) => {
+        if (active) setMcp(status);
+      })
+      .catch(() => undefined);
 
     return () => {
       active = false;
@@ -116,11 +132,10 @@ export default function App() {
     const response = await send({ type: 'FORMRELAY_PREVIEW', document: parsed.document });
     if (response.type !== 'preview') throw new Error('Unexpected preview response.');
 
-    const page = comparePage(parsed.document, response.current);
     setImported(parsed.document);
     setPreview(response);
-    setWrongPage(page.warning);
-    setOverridePage(page.matches);
+    setWrongPage(response.pageMatch.warning);
+    setOverridePage(response.pageMatch.matches);
     setPasteOpen(false);
   };
 
@@ -168,6 +183,45 @@ export default function App() {
     }
   };
 
+  const connectMcp = async (requestPermission: boolean) => {
+    try {
+      setError(null);
+      setNotice(null);
+      if (requestPermission) {
+        const granted = await browser.permissions.request(mcpPermissionRequest());
+        if (!granted) {
+          setNotice('MCP access was not enabled. FormRelay remains local-only.');
+          await refreshMcp();
+          return;
+        }
+      }
+
+      let next = await sendMcpControl({ type: 'FORMRELAY_MCP_CONNECT' });
+      setMcp(next);
+      for (const delay of [250, 750, 1500]) {
+        if (next.connected || next.error) break;
+        await sleep(delay);
+        next = await sendMcpControl({ type: 'FORMRELAY_MCP_STATUS' });
+        setMcp(next);
+      }
+      if (next.connected) setNotice('MCP companion connected.');
+      else if (next.error) setError(next.error);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not connect MCP companion.');
+      await refreshMcp();
+    }
+  };
+
+  const disconnectMcp = async () => {
+    try {
+      setError(null);
+      setMcp(await sendMcpControl({ type: 'FORMRELAY_MCP_DISCONNECT' }));
+      setNotice('MCP companion disconnected. Optional permission remains granted.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not disconnect MCP companion.');
+    }
+  };
+
   return (
     <main className="popup">
       <header>
@@ -175,7 +229,7 @@ export default function App() {
           <h1>FormRelay</h1>
           <p>{current ? `${current.fields.length} fields detected` : 'Inspecting form…'}</p>
         </div>
-        <span className="local">Local only</span>
+        <span className="local">{mcp?.connected ? 'MCP connected' : 'Local only'}</span>
       </header>
 
       {excluded > 0 && (
@@ -211,6 +265,36 @@ export default function App() {
             <button onClick={() => void doPrompt()} disabled={!current}>
               Copy AI Prompt
             </button>
+          </section>
+
+          <div className="divider" />
+
+          <section aria-labelledby="mcp-heading">
+            <h2 id="mcp-heading">AI / MCP</h2>
+            <p>
+              MCP is optional. When connected, redacted form structure and AI-proposed values can
+              pass through your configured MCP client. Existing live field values stay out of MCP
+              previews.
+            </p>
+            <div className="row">
+              {!mcp?.permissionGranted ? (
+                <button className="primary" onClick={() => void connectMcp(true)}>
+                  Enable MCP
+                </button>
+              ) : mcp.connected ? (
+                <button onClick={() => void disconnectMcp()}>Disconnect MCP</button>
+              ) : (
+                <button
+                  className="primary"
+                  onClick={() => void connectMcp(false)}
+                  disabled={mcp.connecting}
+                >
+                  {mcp.connecting ? 'Connecting…' : 'Connect MCP'}
+                </button>
+              )}
+              <button onClick={() => void refreshMcp()}>Refresh status</button>
+            </div>
+            {mcp?.error && <p className="error">{mcp.error}</p>}
           </section>
 
           <div className="divider" />
@@ -319,7 +403,11 @@ export default function App() {
         </section>
       )}
 
-      <footer>No uploads · No accounts · FormRelay does not directly submit forms</footer>
+      <footer>
+        {mcp?.connected
+          ? 'MCP connected · no direct form submission · live before-values stay local'
+          : 'No uploads · No accounts · FormRelay does not directly submit forms'}
+      </footer>
     </main>
   );
 }

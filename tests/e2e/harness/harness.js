@@ -6,15 +6,22 @@ function assert(condition, message) {
 }
 
 async function send(tabId, request) {
-  try {
-    return await api.tabs.sendMessage(tabId, request);
-  } catch {
-    await api.scripting.executeScript({
-      target: { tabId },
-      files: ['content-scripts/form.js'],
-    });
-    return api.tabs.sendMessage(tabId, request);
-  }
+  await api.scripting.executeScript({
+    target: { tabId },
+    files: ['form.js'],
+  });
+  const results = await api.scripting.executeScript({
+    target: { tabId },
+    func: (payload) => {
+      if (typeof globalThis.__formRelayBridgeHandle !== 'function') {
+        throw new Error('FormRelay page bridge did not initialize.');
+      }
+      return globalThis.__formRelayBridgeHandle(payload);
+    },
+    args: [request],
+  });
+  assert(results.length === 1, 'Expected one page bridge result.');
+  return results[0]?.result;
 }
 
 async function run() {
@@ -26,9 +33,6 @@ async function run() {
   const target = tabs.find((tab) => tab.url === targetUrl);
   assert(target?.id != null, `Could not find fixture tab: ${targetUrl}`);
 
-  // Match the production path: FormRelay injects only into the active tab after
-  // user interaction. Keeping the target active also preserves activeTab semantics
-  // in Firefox instead of relying on test-only host permissions.
   await api.tabs.update(target.id, { active: true });
 
   const extracted = await send(target.id, { type: 'FORMRELAY_EXTRACT' });
@@ -48,10 +52,14 @@ async function run() {
 
   const preview = await send(target.id, { type: 'FORMRELAY_PREVIEW', document: imported });
   assert(preview?.type === 'preview', 'Preview bridge response was invalid.');
+  assert(preview.pageMatch?.matches === true, 'Preview page identity should match.');
   const ready = preview.changes.filter((change) => change.status === 'ready');
   assert(ready.length === 1, 'Expected exactly one safe ready change.');
   assert(ready[0]?.liveValue === 'Existing private value', 'Local before-value preview was not captured.');
-  assert(extracted.document.fields.find((field) => field.dom_id === 'full-name')?.value === '', 'Live value leaked back into exported JSON.');
+  assert(
+    extracted.document.fields.find((field) => field.dom_id === 'full-name')?.value === '',
+    'Live value leaked back into exported JSON.',
+  );
 
   const fill = await send(target.id, {
     type: 'FORMRELAY_FILL',

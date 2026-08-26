@@ -26,7 +26,7 @@ export function buildServer({ bridge, approvals }) {
     { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
     {
       instructions:
-        'FormRelay is a local-first form assistant. Inspect and preview before filling. Never call fill_form until the human explicitly approves the preview. FormRelay never submits a form, but page scripts may react to input/change events.',
+        'FormRelay is a local-first form assistant. Inspect and preview before filling. The MCP host should require explicit user confirmation before fill_form. FormRelay never directly submits a form, but page scripts may react to input/change events.',
     },
   );
 
@@ -67,7 +67,7 @@ export function buildServer({ bridge, approvals }) {
     {
       title: 'Preview form fill',
       description:
-        'Validate a completed FormRelay document against the active page without changing the page. Existing live field values are intentionally omitted from the MCP response. Returns a short-lived approval_id for the exact document.',
+        'Validate a completed FormRelay document against the active page without changing it. Existing live field values are omitted from MCP. Returns a short-lived one-time preview_token bound to the exact document.',
       inputSchema: z.object({ document: formDocumentSchema }),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
@@ -77,8 +77,8 @@ export function buildServer({ bridge, approvals }) {
         const preview = sanitizePreview(response);
         return textResult({
           ...preview,
-          approval_id: approvals.issue(document),
-          approval_expires_in_seconds: 300,
+          preview_token: approvals.issue(document),
+          preview_token_expires_in_seconds: 300,
         });
       } catch (error) {
         return errorResult(error);
@@ -89,12 +89,12 @@ export function buildServer({ bridge, approvals }) {
   server.registerTool(
     'fill_form',
     {
-      title: 'Fill form after approval',
+      title: 'Fill form after preview',
       description:
-        'Fill the active form with a document that was just previewed. Requires the one-time approval_id from preview_fill and confirmed=true after explicit human approval. Page-mismatch overrides are never allowed through MCP. This does not submit the form.',
+        'Fill the active form using a document that was just previewed. Requires the one-time preview_token and confirmed=true. MCP clients should require human confirmation for this tool. Page-mismatch overrides are never allowed. This does not directly submit the form.',
       inputSchema: z.object({
         document: formDocumentSchema,
-        approval_id: z.string().uuid(),
+        preview_token: z.string().uuid(),
         confirmed: z.literal(true),
       }),
       annotations: {
@@ -104,14 +104,18 @@ export function buildServer({ bridge, approvals }) {
         openWorldHint: true,
       },
     },
-    async ({ document, approval_id: approvalId }) => {
+    async ({ document, preview_token: previewToken }) => {
       try {
-        if (!approvals.consume(approvalId, document)) {
-          throw new Error('Approval is missing, expired, already used, or belongs to different form data. Run preview_fill again and ask the human to approve it.');
+        if (!approvals.consume(previewToken, document)) {
+          throw new Error(
+            'Preview token is missing, expired, already used, or belongs to different form data. Run preview_fill again.',
+          );
         }
         const previewResponse = await bridge.request({ type: 'FORMRELAY_PREVIEW', document });
         if (previewResponse?.pageMatch?.matches === false) {
-          throw new Error(previewResponse.pageMatch.warning || 'FormRelay page identity does not match this document.');
+          throw new Error(
+            previewResponse.pageMatch.warning || 'FormRelay page identity does not match this document.',
+          );
         }
         const response = await bridge.request({
           type: 'FORMRELAY_FILL',

@@ -42,13 +42,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for manifest in .output/firefox-mv3/manifest.json .output/chrome-mv3/manifest.json; do
-            jq -e '
-              (.permissions | sort) == ["activeTab", "scripting"] and
-              ((.host_permissions // []) | length == 0) and
-              ((.content_scripts // []) | length == 0)
-            ' "$manifest" >/dev/null
-          done
+          jq -e '
+            (.permissions | sort) == ["activeTab", "scripting"] and
+            ((.optional_permissions // []) | sort) == ["nativeMessaging"] and
+            ((.host_permissions // []) | length == 0) and
+            ((.optional_host_permissions // []) | length == 0) and
+            ((.content_scripts // []) | length == 0) and
+            (.browser_specific_settings.gecko.data_collection_permissions.required == ["none"]) and
+            ((.browser_specific_settings.gecko.data_collection_permissions.optional | sort) == ["personallyIdentifyingInfo", "websiteActivity", "websiteContent"])
+          ' .output/firefox-mv3/manifest.json >/dev/null
+
+          jq -e '
+            (.permissions | sort) == ["activeTab", "scripting"] and
+            ((.optional_permissions // []) | sort) == ["nativeMessaging"] and
+            ((.host_permissions // []) | length == 0) and
+            ((.optional_host_permissions // []) | length == 0) and
+            ((.content_scripts // []) | length == 0)
+          ' .output/chrome-mv3/manifest.json >/dev/null
 
       - name: Real-browser extension smoke tests
         run: pnpm test:e2e
@@ -82,3 +92,27 @@ jobs:
           path: ready/
           if-no-files-found: error
           retention-days: 30
+
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.13.0
+
+      - name: Install MCP dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: MCP unit and transport tests
+        run: npm test
+
+      - name: Check MCP source syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find bin src test -type f -name '*.js' -print0 | xargs -0 -n1 node --check

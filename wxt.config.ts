@@ -4,7 +4,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: ({ browser }) => ({
     name: 'FormRelay',
-    description: 'Export web forms to JSON and safely fill them from completed JSON. Local only.',
+    description: 'Export web forms to JSON and safely fill them from completed JSON. Local only by default.',
     icons: {
       16: 'icons/icon-16.png',
       32: 'icons/icon-32.png',
@@ -19,13 +19,21 @@ export default defineConfig({
       },
     },
     permissions: ['activeTab', 'scripting'],
+    optional_permissions: ['nativeMessaging'],
     ...(browser === 'firefox'
       ? {
           browser_specific_settings: {
             gecko: {
               id: 'mousashriteh0@gmail.com',
               strict_min_version: '142.0',
-              data_collection_permissions: { required: ['none'] },
+              data_collection_permissions: {
+                required: ['none'],
+                optional: [
+                  'personallyIdentifyingInfo',
+                  'websiteActivity',
+                  'websiteContent',
+                ],
+              },
             },
           },
         }

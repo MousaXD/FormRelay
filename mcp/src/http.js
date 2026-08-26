@@ -1,72 +1,68 @@
 import http from 'node:http';
-import { Readable } from 'node:stream';
+import {
+  hostHeaderValidation,
+  localhostHostValidation,
+  localhostOriginValidation,
+  originValidation,
+  toNodeHandler,
+} from '@modelcontextprotocol/node';
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import { DEFAULT_HTTP_HOST, DEFAULT_HTTP_PORT } from './constants.js';
 import { buildServer } from './server.js';
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+function csv(name) {
+  return (process.env[name] || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 function isLoopback(host) {
-  return host === '127.0.0.1' || host === '::1' || host === 'localhost';
-}
-
-async function toWebRequest(req, host, port) {
-  const base = `http://${req.headers.host || `${host}:${port}`}`;
-  const url = new URL(req.url || '/', base);
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(req.headers)) {
-    if (Array.isArray(value)) value.forEach((item) => headers.append(name, item));
-    else if (value !== undefined) headers.set(name, value);
-  }
-  const init = { method: req.method || 'GET', headers };
-  if (init.method !== 'GET' && init.method !== 'HEAD') {
-    init.body = Readable.toWeb(req);
-    init.duplex = 'half';
-  }
-  return new Request(url, init);
-}
-
-function sendWebResponse(response, res) {
-  res.statusCode = response.status;
-  response.headers.forEach((value, name) => res.setHeader(name, value));
-  if (!response.body) {
-    res.end();
-    return;
-  }
-  Readable.fromWeb(response.body).pipe(res);
+  return LOCAL_HOSTS.has(host);
 }
 
 export async function serveHttp({ bridge, approvals, host = DEFAULT_HTTP_HOST, port = DEFAULT_HTTP_PORT }) {
   const token = process.env.FORMRELAY_MCP_HTTP_TOKEN || '';
-  if (!isLoopback(host) && !token) {
-    throw new Error('FORMRELAY_MCP_HTTP_TOKEN is required when binding MCP HTTP outside loopback.');
+  const allowedHosts = csv('FORMRELAY_MCP_ALLOWED_HOSTS');
+  const allowedOrigins = csv('FORMRELAY_MCP_ALLOWED_ORIGINS');
+  const hasExternalHost = allowedHosts.some((value) => !LOCAL_HOSTS.has(value));
+
+  if ((!isLoopback(host) || hasExternalHost) && !token) {
+    throw new Error(
+      'FORMRELAY_MCP_HTTP_TOKEN is required for non-loopback binds or externally routed hostnames.',
+    );
   }
+
   const handler = createMcpHandler(() => buildServer({ bridge, approvals }));
-  const server = http.createServer(async (req, res) => {
-    try {
-      const path = new URL(req.url || '/', `http://${req.headers.host || `${host}:${port}`}`).pathname;
-      if (path === '/healthz') {
-        res.statusCode = 200;
-        res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({ ok: true, browser_bridge_connected: bridge.connected }));
-        return;
-      }
-      if (path !== '/mcp') {
-        res.statusCode = 404;
-        res.end('Not found');
-        return;
-      }
-      if (token && req.headers.authorization !== `Bearer ${token}`) {
-        res.statusCode = 401;
-        res.setHeader('www-authenticate', 'Bearer');
-        res.end('Unauthorized');
-        return;
-      }
-      const request = await toWebRequest(req, host, port);
-      const response = await handler.fetch(request);
-      sendWebResponse(response, res);
-    } catch (error) {
-      res.statusCode = 500;
-      res.end(error instanceof Error ? error.message : 'Internal error');
+  const nodeHandler = toNodeHandler(handler);
+  const validateHost = allowedHosts.length > 0 ? hostHeaderValidation(allowedHosts) : localhostHostValidation();
+  const validateOrigin =
+    allowedOrigins.length > 0 ? originValidation(allowedOrigins) : localhostOriginValidation();
+
+  const server = http.createServer((req, res) => {
+    if (!validateHost(req, res) || !validateOrigin(req, res)) return;
+
+    const path = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`).pathname;
+    if (path === '/healthz') {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ ok: true, browser_bridge_connected: bridge.connected }));
+      return;
     }
+    if (path !== '/mcp') {
+      res.statusCode = 404;
+      res.end('Not found');
+      return;
+    }
+    if (token && req.headers.authorization !== `Bearer ${token}`) {
+      res.statusCode = 401;
+      res.setHeader('www-authenticate', 'Bearer');
+      res.end('Unauthorized');
+      return;
+    }
+    void nodeHandler(req, res);
   });
 
   await new Promise((resolve, reject) => {
@@ -80,7 +76,7 @@ export async function serveHttp({ bridge, approvals, host = DEFAULT_HTTP_HOST, p
   return {
     server,
     close: async () => {
-      await handler.close?.();
+      await handler.close();
       await new Promise((resolve) => server.close(() => resolve()));
     },
   };
