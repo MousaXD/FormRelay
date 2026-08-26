@@ -19,7 +19,7 @@ FormRelay is a local-first browser extension that turns a webpage form into stru
 
 FormRelay has **zero telemetry, analytics, tracking, remote API calls, accounts, backend servers, databases, or cloud storage**.
 
-Production permissions are only `activeTab` and `scripting`. FormRelay does not request `<all_urls>`. The page bridge is a WXT unlisted script injected only into the active tab following extension interaction.
+Production permissions are only `activeTab` and `scripting`. FormRelay does not request `<all_urls>`. The page bridge is a WXT runtime content script with an empty match set, injected only into the active tab following extension interaction, so it adds no persistent host permission.
 
 Existing page values are not included in exported JSON. Passwords, file inputs, hidden inputs, payment-card fields, CVC/CVV, one-time codes, API keys/tokens, private keys, and similar sensitive fields are excluded conservatively.
 

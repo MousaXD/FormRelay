@@ -26,7 +26,10 @@ function isBridgeResponse(value: unknown): value is BridgeResponse {
 
 async function send(request: BridgeRequest): Promise<BridgeResponse> {
   const tabId = await activeTabId();
-  await browser.scripting.executeScript({ target: { tabId }, files: ['form.js'] });
+  await browser.scripting.executeScript({
+    target: { tabId },
+    files: ['content-scripts/form.js'],
+  });
   const response: unknown = await browser.tabs.sendMessage(tabId, request);
   if (!isBridgeResponse(response)) throw new Error('Unexpected FormRelay bridge response.');
   return response;

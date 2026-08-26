@@ -1,4 +1,4 @@
-import { defineUnlistedScript } from 'wxt/utils/define-unlisted-script';
+import { defineContentScript } from 'wxt/utils/define-content-script';
 import { browser } from 'wxt/browser';
 import { extractForm } from '../src/extraction/extractForm';
 import { fillForm } from '../src/filling/fillForm';
@@ -15,10 +15,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
 }
 
-export default defineUnlistedScript({
-  globalName: true,
+export default defineContentScript({
+  registration: 'runtime',
+  matches: [],
+  noScriptStartedPostMessage: true,
   main() {
-    if (globalThis.__formRelayBridgeInstalled) return 'already-installed';
+    if (globalThis.__formRelayBridgeInstalled) return;
 
     browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
       if (!isRecord(message)) return false;
@@ -60,6 +62,5 @@ export default defineUnlistedScript({
     });
 
     globalThis.__formRelayBridgeInstalled = true;
-    return 'installed';
   },
 });

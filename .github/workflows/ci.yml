@@ -38,6 +38,18 @@ jobs:
       - name: Build Firefox and Chromium
         run: pnpm build
 
+      - name: Verify extension permission boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          for manifest in .output/firefox-mv3/manifest.json .output/chrome-mv3/manifest.json; do
+            jq -e '
+              (.permissions | sort) == ["activeTab", "scripting"] and
+              ((.host_permissions // []) | length == 0) and
+              ((.content_scripts // []) | length == 0)
+            ' "$manifest" >/dev/null
+          done
+
       - name: Real-browser extension smoke tests
         run: pnpm test:e2e
 
