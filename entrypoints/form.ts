@@ -16,9 +16,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export default defineUnlistedScript({
+  globalName: true,
   main() {
-    if (globalThis.__formRelayBridgeInstalled) return;
-    globalThis.__formRelayBridgeInstalled = true;
+    if (globalThis.__formRelayBridgeInstalled) return 'already-installed';
 
     browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
       if (!isRecord(message)) return false;
@@ -58,5 +58,8 @@ export default defineUnlistedScript({
 
       return false;
     });
+
+    globalThis.__formRelayBridgeInstalled = true;
+    return 'installed';
   },
 });
